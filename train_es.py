@@ -32,10 +32,11 @@ from spython.main import Client as client
 
 def run_actor_in_container(id=0):
     BUFFER_PATH = "./local_buffer"
+    print(f'#################DEBUG: {BUFFER_PATH}, {os.getcwd()}')
     out = client.execute(
         join(BUFFER_PATH, "nav_benchmark.sif"),
-        ['/bin/bash', '/jackal_ws/src/ros_jackal/entrypoint.sh', 'python3', 'actor_es.py', '--id=%d' %id],
-        bind=['%s:%s' %(BUFFER_PATH, '/local_buffer'), '%s:%s' %(os.getcwd(), "/jackal_ws/src/ros_jackal")],
+        ['/bin/bash', '/jackal_ws/src/training_ros_jackal/entrypoint.sh', 'python3', 'actor_es.py', '--id=%d' %id],
+        bind=['%s:%s' %(BUFFER_PATH, '/local_buffer'), '%s:%s' %(os.getcwd(), "/jackal_ws/src/training_ros_jackal")],
         options=["-i", "-n", "--network=none", "-p"], nv=True
     )
     return out
