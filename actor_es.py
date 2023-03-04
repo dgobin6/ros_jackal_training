@@ -51,6 +51,8 @@ rospy.logwarn(os.environ['GAZEBO_PLUGIN_PATH'])
 
 def initialize_actor(id):
     rospy.logwarn(">>>>>>>>>>>>>>>>>> actor id: %s <<<<<<<<<<<<<<<<<<" %(str(id)))
+    print(BUFFER_PATH)
+    print(os.getcwd())
     assert os.path.exists(BUFFER_PATH), BUFFER_PATH
     f = None
     c = 0
