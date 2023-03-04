@@ -51,9 +51,10 @@ rospy.logwarn(os.environ['GAZEBO_PLUGIN_PATH'])
 
 def initialize_actor(id):
     rospy.logwarn(">>>>>>>>>>>>>>>>>> actor id: %s <<<<<<<<<<<<<<<<<<" %(str(id)))
-    rospy.logwarn(BUFFER_PATH)
-    rospy.logwarn(os.getcwd())
-    assert os.path.exists(BUFFER_PATH), BUFFER_PATH
+    try
+        assert os.path.exists(BUFFER_PATH), BUFFER_PATH
+    except
+        raise Exception(f'COULD NOT FIND {BUFFER_PATH} in {os.getcwd()}')
     f = None
     c = 0
     while f is None and c < 10:
