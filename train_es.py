@@ -26,6 +26,7 @@ from envs import registration
 from envs.wrappers import StackFrame
 
 # from multiprocessing import Pool, set_start_method, get_context
+from multiprocessing import Pool
 from parallelbar import progress_map
 from spython.main import Client as client
 
@@ -81,10 +82,10 @@ class Agent():
         bc_vec = []
         total_reward = 0.0
 
-        with Pool(self.num_actor) as p:
+        with Pool(self.n_worlds) as p:
             output = p.map(run_actor_in_container, self.ids)
         for o in output:
-            print(o[0])
+            print(o['message'])
 
         # try:
         #     output = progress_map(run_actor_in_container, self.ids, process_timeout=600)

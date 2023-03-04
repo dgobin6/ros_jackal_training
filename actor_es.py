@@ -41,7 +41,7 @@ class Policy(torch.nn.Module):
 
 BUFFER_PATH = os.getenv('BUFFER_PATH')
 if not BUFFER_PATH:
-    BUFFER_PATH = "local_buffer"
+    BUFFER_PATH = "/local_buffer"
 
 # add path to the plugins to the GAZEBO_PLUGIN_PATH
 gpp = os.getenv('GAZEBO_PLUGIN_PATH') if os.getenv('GAZEBO_PLUGIN_PATH') is not None else ""
