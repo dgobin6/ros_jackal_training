@@ -11,7 +11,7 @@ From: ros:melodic
     python3 -m venv /venv
     export PATH="/venv/bin:$PATH"
     pip install --upgrade pip
-    cd ${SINGULARITY_ROOTFS}/jackal_ws/src/ros_jackal
+    cd ${SINGULARITY_ROOTFS}/jackal_ws/src/ros_jackal_training
     pip install -r requirements.txt
 
     cd ..
