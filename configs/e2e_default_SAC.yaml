@@ -54,7 +54,7 @@ training_config:
 
 container_config:
   # 5 container running in parallel
-  num_actor: 10
+  num_actor: 1
   # 50 training static worlds
   worlds: [153, 43, 20, 209, 74, 274, 127, 192, 56, 291, 242, 29, 238, 170, 286, 52, 243, 157, 116, 131, 23, 276, 231, 273, 51, 247, 266, 110, 166, 225, 207, 236, 280, 35, 49, 65, 105, 80, 67, 109, 18, 177, 75, 195, 249, 26, 264, 83, 149, 176]
   # 50 test static worlds

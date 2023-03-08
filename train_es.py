@@ -19,37 +19,49 @@ from pprint import pformat
 import csv 
 
 import torch
+# from estorch.estorch import NSRA_ES
 from estorch import NSRA_ES
 from tensorboardX import SummaryWriter
 
 from envs import registration
 from envs.wrappers import StackFrame
 
-# from multiprocessing import Pool, set_start_method, get_context
-from multiprocessing import Pool
+# from multiprocess import Pool, set_start_method, get_context
+# from multiprocessing import Pool
 from parallelbar import progress_map
 from spython.main import Client as client
+# from rl_algos.simple_collector import collect
+
+import subprocess 
 
 def run_actor_in_container(id=0):
+    pid = os.getpid()
     BUFFER_PATH = "./local_buffer"
-    print(f'#################DEBUG: {BUFFER_PATH}, {os.getcwd()}')
     out = client.execute(
-        join(BUFFER_PATH, "nav_benchmark.sif"),
-        ['/bin/bash', '/jackal_ws/src/training_ros_jackal/entrypoint.sh', 'python3', 'actor_es.py', '--id=%d' %id],
-        bind=['%s:%s' %(BUFFER_PATH, '/local_buffer'), '%s:%s' %(os.getcwd(), "/jackal_ws/src/training_ros_jackal")],
+        join("./local_buffer", "nav_benchmark.sif"),
+        ['/bin/bash', '/jackal_ws/src/ros_jackal_training/entrypoint.sh', 'python3', 'actor_es.py', '--id=%d' %id],
+        bind=['%s:%s' %(BUFFER_PATH, '/local_buffer'), '%s:%s' %(os.getcwd(), "/jackal_ws/src/ros_jackal_training")],
         options=["-i", "-n", "--network=none", "-p"], nv=True
     )
+    try:
+        print(out['message'])
+        raise Exception("CONTAINER ERROR")
+    except: 
+        pass
     return out
+
 
 class Agent(): 
     def __init__(self, worlds, config, device=torch.device('cpu')):
         self.device = device
         self.config = config
         self.worlds = worlds
-        self.n_worlds = 10
-        self.save_starter = "./local_buffer/policy"
-        self.ids = range(10)
+        self.n_worlds = 1
+        self.save_path = "./local_buffer/policy"
+        self.ids = range(self.n_worlds)
         self.rollout_count = 0
+
+        self.pop_size = 16
 
         # These two env variable ensure ROS running correctly in the container
         os.environ["ROS_HOSTNAME"] = "localhost"
@@ -75,37 +87,71 @@ class Agent():
         #             total_reward += reward
 
         print("###########################ROLL OUT #################################")
+        #single id
+        uid = random.randint(0,100000000)
+        cont = True
         st = time.time()
+
         #save a dict for each actor to prevent lock outs
-        for id in self.ids:
-            save_path = f'{self.save_starter}_{id}.pth'
-            torch.save(policy.state_dict(), save_path)
+        spath = f'{self.save_path}_{uid}.pth'
+        torch.save(policy.state_dict(), spath)
+        # torch.save(policy.state_dict(), self.save_path)
         bc_vec = []
-        total_reward = 0.0
+        total_reward = 0.0 
+        attempts = 0
 
-        with Pool(self.n_worlds) as p:
-            output = p.map(run_actor_in_container, self.ids)
-        for o in output:
-            print(o['message'])
+        out = run_actor_in_container(uid)
+                
+        file_path = f'./local_buffer/actor_{uid}.csv'
+        with open(file_path, newline='') as f:
+            data = list(csv.reader(f))
+            for row in data: 
+                total_reward+= float(row[0]) #technically not necessary anymore
+                bc_vec.append([float(row[1]), float(row[2])])
+        os.remove(file_path)
+        # for i in self.ids: 
+        #     run_actor_in_container(i)
 
-        # try:
-        #     output = progress_map(run_actor_in_container, self.ids, process_timeout=600)
-        # except:
-        #     print(output)
-        #     raise Exception("CONTAINER FAILED")
+        # with get_context("spawn").Pool(self.n_worlds) as p:
+        #     output = p.map(run_actor_in_container, self.ids)
+        # for o in output:
+        #     try: 
+        #         print(o[0])
+        #     except:
+        #         print(o['message'])
+        #         raise Exception("ERROR IN CONTAINER")
 
-    
-        for id in self.ids: 
-            file_path = f'./local_buffer/actor_{id}.csv'
-            with open(file_path, newline='') as csvfile: 
-                data = list(csv.reader(csvfile))
-                #there should be one row
-                assert len(data)==1
-                assert len(data[0])==3
-                for row in data: 
-                    total_reward += float(row[0])
-                    bc_vec.append([float(row[1]), float(row[2])])
-            os.remove(file_path) #no more file
+        # old_ids = self.ids
+        # cont = True
+        # while cont:
+        #     new_ids = []
+        #     try:
+        #         output = progress_map(run_actor_in_container, old_ids, process_timeout=500)
+        #         cont = False
+        #     except:
+        #         #This is necessary when I start pushing memory limits e.g. 10 containers
+        #         #but doesn't seem important when only doing 5. Given I have 8 cores or so, surprised 10 containers 
+        #         #was so challenging
+        #         print("Timeout occured")
+        #         if attempts >5: 
+        #             raise Exception("CONTINUAL TIMEOUT")
+        #         for id in old_ids: 
+        #             file_path = f'./local_buffer/actor{id}/actor_{id}.csv'
+        #             if not os.path.exists(file_path):
+        #                 new_ids.append(id)
+        #         print(f'Ids that failed{new_ids}')
+        #         attempts+=1
+        #         old_ids = new_ids
+
+
+        # for id in self.ids: 
+        #     file_path = f'./local_buffer/actor{id}/actor_{id}.csv'
+        #     with open(file_path, newline='') as f: 
+        #         data = list(csv.reader(f))
+        #         for row in data: 
+        #             total_reward += float(row[0])
+        #             bc_vec.append([float(row[1]), float(row[2])])
+        #     os.remove(file_path) #no more file
         
         #updated jackal_gazebo_envs to provide the current position of the robot
         #behaviorial characteristic is the final (x,y) positions of the robot a la uber
@@ -115,8 +161,8 @@ class Agent():
         print(f'avg_reward: {average_reward}')
         self.rollout_count += 1
         print(f'###########################ROLL OUT DONE: {dt}, {self.rollout_count} #################################')
-        for id in self.ids:
-            os.remove(f'{self.save_starter}_{id}.pth')
+        # os.remove(self.save_path)
+        os.remove(spath)
         return average_reward, bc
 
 
@@ -232,7 +278,7 @@ if __name__ == "__main__":
     agent_kwargs = {"worlds": worlds, 'config': config}
     policy_kwargs = {'n_input':input_dim, 'n_output':action_dim}
     optimizer_kwargs = {'lr': .01}
-    population_size = 256 #honestly not 100% sure what this is for
+    population_size = 12 #population to evolve chosen policy
     meta_population_size = 5 #policy population
     sigma = .02
     weight_t = 20 #from uber research paper, wish I could set starting weight to .5 as they did
@@ -246,10 +292,10 @@ if __name__ == "__main__":
                  device='cpu', min_weight = min_weight, policy_kwargs=policy_kwargs,
                  agent_kwargs=agent_kwargs, optimizer_kwargs=optimizer_kwargs)
     
-    es.train(n_steps = 100, n_proc=1)
+    es.train(n_steps = 50, n_proc=4)
 
     #save best policy
-    save_file_path = "./save_stuff/nsra-es-best-policy_22723_1.pth"
+    save_file_path = "./save_stuff/nsra-pop12_gen50.pth"
 
     torch.save(es.best_policy_dict, save_file_path)
 

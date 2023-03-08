@@ -1,11 +1,9 @@
 from gym.spaces import Box
 import numpy as np
 
-try:  # make sure to create a fake environment without ros installed
-    import rospy
-    from geometry_msgs.msg import Twist
-except ModuleNotFoundError:
-    pass
+import rospy
+from geometry_msgs.msg import Twist
+
 
 from envs.jackal_gazebo_envs import JackalGazebo, JackalGazeboLaser
 

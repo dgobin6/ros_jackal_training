@@ -9,6 +9,7 @@ import time
 import rospy
 import argparse
 import csv
+import sys
 
 from envs import registration
 from envs.wrappers import StackFrame
@@ -51,10 +52,9 @@ rospy.logwarn(os.environ['GAZEBO_PLUGIN_PATH'])
 
 def initialize_actor(id):
     rospy.logwarn(">>>>>>>>>>>>>>>>>> actor id: %s <<<<<<<<<<<<<<<<<<" %(str(id)))
-    # try
-    #     # assert os.path.exists(BUFFER_PATH), BUFFER_PATH
-    # except
-    #     raise Exception(f'COULD NOT FIND {BUFFER_PATH} in {os.getcwd()}')
+
+    assert os.path.exists(BUFFER_PATH), BUFFER_PATH
+
     f = None
     c = 0
     while f is None and c < 10:
@@ -70,19 +70,43 @@ def initialize_actor(id):
     return config
 
 def load_policy(id):
-    file_path = f'/local_buffer/policy_{id}.pth'
-    n_input = 724 #state dim
-    n_output = 2 #action dim
-    policy = Policy(n_input, n_output).to('cpu')
-    policy.load_state_dict(torch.load(file_path))
+    f = True
+    count = 0
+    policy_name = "policy"
+    while f:
+        try:
+            file_path = f'./local_buffer/policy_{id}.pth'
+            # file_path = f'./local_buffer/policy.pth'
+            n_input = 724 #state dim
+            n_output = 2 #action dim
+            policy = Policy(n_input, n_output).to('cpu')
+            policy.load_state_dict(torch.load(file_path))
+            f = False
+        except:
+            time.sleep(1)
+            if count > 10: 
+                raise Exception("ERROR loading policy")
+            count +=1
+
     return policy
 
 def write_buffer(total_reward, bc, id):
-    file_path = f'/local_buffer/actor_{id}.csv'
-    
-    with open(file_path, 'w', newline='') as csvfile: 
-        datawriter = csv.writer(csvfile)
-        datawriter.writerow([total_reward, bc[0], bc[1]])
+    # file_path = f'/local_buffer/actor{id}/actor_{id}.csv'
+    file_path = f'./local_buffer/actor_{id}.csv'
+    count = 0
+    f = True
+    while f:
+        try:
+            with open(file_path, 'w', newline='') as f: 
+                cw = csv.writer(f)
+                cw.writerow([total_reward, bc[0], bc[1]])
+            f = False
+        except:
+            time.sleep(1)
+            if count > 10:
+                raise Exception("ERROR could not write file")
+            count +=1
+            
 
     return 
 
@@ -94,7 +118,11 @@ def get_world_name(config, id):
         worlds = config["container_config"]["worlds"].copy()
         random.shuffle(worlds)
         worlds = worlds[:config["container_config"]["num_actor"]]
-    world_name = worlds[id]
+    if len(worlds) == 1:
+        #just one actor
+        world_name = worlds[0]
+    else:
+        world_name = worlds[id]
     if isinstance(world_name, int):
         world_name = "BARN/world_%d.world" %(world_name)
     return world_name
@@ -130,6 +158,8 @@ def main(args):
     #so getting it in the container is a bit of a pain
     #but goal_position is world_frame_goal - (x,y), so it includes that information and should be good enough
     bc = info['goal_position']
+    if bc==[]:
+        raise Exception("EMPTY BC")
     write_buffer(total_reward, bc, id)
     
     print(">>>>>>>>>>>>>>>>>>>>>>>>> actor_id: %d, world_idx: %s, num_episode: %d" %(id, world_name, num_ep))
